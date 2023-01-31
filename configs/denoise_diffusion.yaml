@@ -1,0 +1,11 @@
+exp_name: 'debug'
+
+dataset: 'rsna'
+model: 'denoising_diffusion'
+
+num_steps: 100000
+batch_size: 8
+lr: 0.0001
+print_freq: 100
+val_freq: 100
+checkpoint_freq: 5000
