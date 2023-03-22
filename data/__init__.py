@@ -10,31 +10,22 @@ def build_dataloader(config, phase):
         # xrv.datasets.XRayCenterCrop(),
         # xrv.datasets.XRayResizer(128)
         # transforms.CenterCrop(1024),
-        transforms.Resize(128)
+        transforms.Resize(config.img_size)
     ])
 
     if config.dataset == 'rsna':
         if phase == 'train':
             dataset = rsna.RSNA_Pneumonia_Dataset(
-                imgdir='/mnt/sdi/yixiao/xray_data/rsna-pneumonia-detection/stage_2_train_images',
+                imgdir='/mnt/sdf/yixiao/xray_data/rsna-pneumonia-detection/stage_2_train_images',
                 has_label=True,
-                csvpath='/mnt/sdi/yixiao/xray_data/rsna-pneumonia-detection/stage_2_train_labels.csv',
+                csvpath='/mnt/sdf/yixiao/xray_data/rsna-pneumonia-detection/stage_2_train_labels.csv',
                 transform=transform,
                 extension='.dcm',
-                normal_only=False
-            )
-        elif phase == 'train_normal':
-            dataset = rsna.RSNA_Pneumonia_Dataset(
-                imgdir='/mnt/sdi/yixiao/xray_data/rsna-pneumonia-detection/stage_2_train_images',
-                has_label=True,
-                csvpath='/mnt/sdi/yixiao/xray_data/rsna-pneumonia-detection/stage_2_train_labels.csv',
-                transform=transform,
-                extension='.dcm',
-                normal_only=False
+                normal_only=config.normal_only
             )
         elif phase == 'test':
             dataset = rsna.RSNA_Pneumonia_Dataset(
-                imgdir='/mnt/sdi/yixiao/xray_data/rsna-pneumonia-detection/stage_2_test_images',
+                imgdir='/mnt/sdf/yixiao/xray_data/rsna-pneumonia-detection/stage_2_test_images',
                 has_label=False,
                 transform=transform,
                 extension='.dcm'
@@ -61,7 +52,7 @@ def build_dataloader(config, phase):
     else:
         raise NotImplementedError()
     
-    if phase in ['train', 'train_normal']:
+    if phase in ['train']:
         dataloader = torch.utils.data.DataLoader(
             dataset,
             batch_size=config.batch_size,

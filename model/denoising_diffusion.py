@@ -939,7 +939,7 @@ class Trainer():
 
     def __init__(self, config):
         self.model = Unet(dim=64, channels=1, dim_mults=(1, 2, 4, 8))
-        self.diffusion = GaussianDiffusion(self.model, image_size=128, timesteps=1000, loss_type='l1')
+        self.diffusion = GaussianDiffusion(self.model, image_size=config.img_size, timesteps=1000, loss_type='l1')
 
         self.optimizer = torch.optim.Adam(self.diffusion.parameters(), lr=config.lr, betas=(0.9, 0.99))
         self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, config.num_steps)

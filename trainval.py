@@ -29,7 +29,7 @@ def main():
     )
     writer = SummaryWriter(log_dir=os.path.join('checkpoints', config.exp_name))
 
-    train_loader = data.build_dataloader(config, phase='train_normal')
+    train_loader = data.build_dataloader(config, phase='train')
     # val_loader = data.build_dataloader(config, phase='test')
     train_iter = utils.cycle(train_loader)
     
