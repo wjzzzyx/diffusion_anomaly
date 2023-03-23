@@ -31,22 +31,20 @@ def build_dataloader(config, phase):
                 extension='.dcm'
             )
     elif config.dataset == 'nih':
-        if phase == 'train':
+        if phase in ['train', 'val']:
             dataset = nih.NIH_Dataset(
-                imgdir='/mnt/sdi/yixiao/xray_data/nih/images',
-                case_list='train_val_list.txt',
-                csvpath='/mnt/sdi/yixiao/xray_data/nih/Data_Entry_2017.csv',
-                bbox_list_path='/mnt/sdi/yixiao/xray_data/nih/BBox_List_2017.csv',
+                data_dir='/mnt/sdf/yixiao/xray_data/nih',
+                phase=phase,
                 views=['PA'],
+                use_pathologies=['No Finding'],
                 transform=transform,
             )
         elif phase == 'test':
             dataset = nih.NIH_Dataset(
-                imgdir='/mnt/sdi/yixiao/xray_data/nih/images',
-                case_list='test_list.txt',
-                csvpath='/mnt/sdi/yixiao/xray_data/nih/Data_Entry_2017.csv',
-                bbox_list_path='/mnt/sdi/yixiao/xray_data/nih/BBox_List_2017.csv',
+                data_dir='/mnt/sdf/yixiao/xray_data/nih',
+                phase=phase,
                 views=['PA'],
+                use_pathologies=[],
                 transform=transform,
             )
     else:

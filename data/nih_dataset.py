@@ -1,12 +1,9 @@
+import numpy as np
 import os
 import pandas as pd
-import pydicom
-import skimage.io
-import numpy as np
+import skimage
 import torch
-from typing import Union
-
-from .base_dataset import Dataset
+from torch.utils.data import Dataset
 
 
 class NIH_Dataset(Dataset):
@@ -21,50 +18,69 @@ class NIH_Dataset(Dataset):
 
     def __init__(
         self,
-        imgdir,
-        case_list,
-        csvpath="Data_Entry_2017_v2020.csv.gz",
-        bbox_list_path="BBox_List_2017.csv.gz",
+        data_dir,
+        phase,
         views=["PA"],
-        transform=None,
-        data_aug=None,
+        use_pathologies=[],
         nrows=None,
-        seed=0,
-        unique_patients=True,
-        pathology_masks=False
+        unique_patients=False,
+        pathology_masks=False,
+        transform=None,
     ):
         super(NIH_Dataset, self).__init__()
-
-        np.random.seed(seed)  # Reset the seed so all runs are the same.
-        self.imgdir = imgdir
-        self.csvpath = csvpath
-        self.transform = transform
-        self.data_aug = data_aug
+        self.imgdir = os.path.join(data_dir, 'images')
+        self.csvpath = os.path.join(data_dir, 'Data_Entry_2017.csv')
+        self.bbox_list_path = os.path.join(data_dir, 'BBox_List_2017.csv')
+        self.phase = phase
+        self.views = views
         self.pathology_masks = pathology_masks
 
-        self.pathologies = ["Atelectasis", "Consolidation", "Infiltration",
-                            "Pneumothorax", "Edema", "Emphysema", "Fibrosis",
-                            "Effusion", "Pneumonia", "Pleural_Thickening",
-                            "Cardiomegaly", "Nodule", "Mass", "Hernia"]
-
-        self.pathologies = sorted(self.pathologies)
+        self.pathologies = [
+            "No Finding", "Atelectasis", "Cardiomegaly", "Consolidation", "Edema",
+            "Effusion", "Emphysema", "Fibrosis", "Hernia", "Infiltration", "Hernia",
+            "Nodule", "Pneumothorax", "Pneumonia", "Pleural_Thickening",
+        ]
+        self.use_pathologies = use_pathologies if len(use_pathologies) > 0 else self.pathologies
 
         # Load data
-        self.check_paths_exist()
         self.csv = pd.read_csv(self.csvpath, nrows=nrows)
-
+        if phase == 'train':
+            with open(os.path.join(data_dir, 'train_val_list.txt')) as f:
+                filelist = [x.strip() for x in f.readlines()]
+            if unique_patients:
+                patients = set([x.split('_')[0] for x in filelist])
+                filelist = sorted([x + '_000.png' for x in patients])
+                filelist = filelist[:20000]
+            else:
+                filelist = filelist[:70000]
+        elif phase == 'val':
+            with open(os.path.join(data_dir, 'train_val_list.txt')) as f:
+                filelist = [x.strip() for x in f.readlines()]
+            if unique_patients:
+                patients = set([x.split('_')[0] for x in filelist])
+                filelist = sorted([x + '_000.png' for x in patients])
+                filelist = filelist[20000:]
+            else:
+                filelist = filelist[70000:]
+        elif phase == 'test':
+            with open(os.path.join(data_dir, 'test_list.txt')) as f:
+                filelist = [x.strip() for x in f.readlines()]
+            if unique_patients:
+                patients = set([x.split('_')[0] for x in filelist])
+                filelist = [x + '_000.png' for x in patients]
+        
         # Remove images with view position other than specified
-        self.csv["view"] = self.csv['View Position']
-        self.limit_to_selected_views(views)
-
-        if unique_patients:
-            self.csv = self.csv.groupby("Patient ID").first()
-
-        self.csv = self.csv.reset_index()
+        self.csv = self.csv[self.csv['View Position'].isin(views)]
+        # Keep images with pathologies specified
+        self.csv = self.csv[self.csv['Finding Labels'].isin(self.use_pathologies)]
+        # if unique_patients:
+        #     self.csv = self.csv.groupby("Patient ID").first()
+        self.csv = self.csv[self.csv['Image Index'].isin(filelist)]
+        self.csv = self.csv.reset_index(drop=True)
 
         ####### pathology masks ########
         # load nih pathology masks
-        self.pathology_maskscsv = pd.read_csv(bbox_list_path,
+        self.pathology_maskscsv = pd.read_csv(self.bbox_list_path,
                                               names=["Image Index", "Finding Label", "x", "y", "w", "h", "_1", "_2", "_3"],
                                               skiprows=1)
 
@@ -81,20 +97,7 @@ class NIH_Dataset(Dataset):
         self.labels = np.asarray(self.labels).T
         self.labels = self.labels.astype(np.float32)
 
-        # add consistent csv values
-
-        # offset_day_int
-        # self.csv["offset_day_int"] =
-
-        # patientid
-        self.csv["patientid"] = self.csv["Patient ID"].astype(str)
-
-        # age
-        self.csv['age_years'] = self.csv['Patient Age'] * 1.0
-
-        # sex
-        self.csv['sex_male'] = self.csv['Patient Gender'] == 'M'
-        self.csv['sex_female'] = self.csv['Patient Gender'] == 'F'
+        self.data_aug = transform
 
     def string(self):
         return self.__class__.__name__ + " num_samples={} views={} data_aug={}".format(len(self), self.views, self.data_aug)
@@ -105,19 +108,18 @@ class NIH_Dataset(Dataset):
     def __getitem__(self, idx):
         sample = {}
         sample["idx"] = idx
-        sample["lab"] = self.labels[idx]
+        sample["label"] = self.labels[idx]
 
         imgid = self.csv['Image Index'].iloc[idx]
-        img_path = os.path.join(self.imgpath, imgid)
-        img = skimage.io.imread(img_path)
-
-        sample["img"] = normalize(img, maxval=255, reshape=True)
+        img_path = os.path.join(self.imgdir, imgid)
+        img = skimage.io.imread(img_path, as_gray=True)
+        img = img.astype(float) / 255
+        img = torch.as_tensor(img, dtype=torch.float).unsqueeze(0)
 
         if self.pathology_masks:
             sample["pathology_masks"] = self.get_mask_dict(imgid, sample["img"].shape[2])
 
-        sample = apply_transforms(sample, self.transform)
-        sample = apply_transforms(sample, self.data_aug)
+        sample['img'] = self.data_aug(img)
 
         return sample
 
@@ -144,3 +146,4 @@ class NIH_Dataset(Dataset):
 
                 path_mask[self.pathologies.index(row["Finding Label"])] = mask
         return path_mask
+
