@@ -1,11 +1,12 @@
 import torch
 from torchvision import transforms
 
-import data.rsna_dataset as rsna
-import data.nih_dataset as nih
+from . import rsna_dataset as rsna
+from . import nih_dataset as nih
+from . import siim_dataset as siim
 
 
-def build_dataloader(config, phase):
+def build_dataset(config, phase):
     transform = transforms.Compose([
         # xrv.datasets.XRayCenterCrop(),
         # xrv.datasets.XRayResizer(128)
@@ -47,9 +48,21 @@ def build_dataloader(config, phase):
                 use_pathologies=[],
                 transform=transform,
             )
+    elif config.dataset == 'siim':
+        dataset = siim.SIIM_Pneumothorax_Dataset(
+            data_dir='/mnt/sdf/yixiao/xray_data/siim-acr-pneumothorax-segmentation',
+            phase=phase,
+            transform=transform,
+            normal_only=True,
+            unique_patients=True,
+            pathology_masks=False
+        )
     else:
         raise NotImplementedError()
     
+    return dataset
+
+def build_dataloader(config, dataset, phase):
     if phase in ['train']:
         dataloader = torch.utils.data.DataLoader(
             dataset,

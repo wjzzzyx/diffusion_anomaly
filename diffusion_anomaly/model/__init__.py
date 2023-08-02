@@ -1,4 +1,4 @@
-from model import denoising_diffusion
+from . import denoising_diffusion
 
 
 def get_model(config):
