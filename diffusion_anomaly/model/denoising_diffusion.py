@@ -762,7 +762,7 @@ class GaussianDiffusion(nn.Module):
         img = self.normalize(img)
         return self.p_losses(img, t, *args, **kwargs)
     
-    def calc_bpd_loop(self, x_start, clip_denoised=True, model_kwargs=None):
+    def calc_bpd_loop(self, x_start, clip_denoised=True, model_kwargs=None, timesteps=None):
         """
         Compute the entire variational lower-bound, measured in bits-per-dim,
         as well as other related quantities.
@@ -785,7 +785,8 @@ class GaussianDiffusion(nn.Module):
         vb = []
         pred_xstart = []
         xstart_mse = []
-        for t in list(range(self.num_timesteps)):
+        timesteps = timesteps if timesteps else list(range(self.num_timesteps))
+        for t in timesteps:
             t_batch = torch.tensor([t] * batch_size, device=device)
             noise = torch.randn_like(x_start)
             x_t = self.q_sample(x_start=x_start, t=t_batch, noise=noise)
@@ -982,7 +983,7 @@ class Trainer():
         torch.save(checkpoint, filename)
     
     def load_checkpoint(self, filename):
-        checkpoint = torch.load(filename)
+        checkpoint = torch.load(filename, map_location='cpu')
         self.diffusion.load_state_dict(checkpoint['diffusion'])
         self.ema.load_state_dict(checkpoint['ema'])
         self.optimizer.load_state_dict(checkpoint['optimizer'])
@@ -990,4 +991,4 @@ class Trainer():
     
     def compute_nll(self, feeddict):
         self.ema.ema_model.eval()
-        return self.ema.ema_model.calc_bpd_loop(feeddict['img'])
+        return self.ema.ema_model.calc_bpd_loop(feeddict['img'], timesteps=feeddict['timesteps'])
